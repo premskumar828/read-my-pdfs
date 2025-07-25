@@ -24,30 +24,48 @@ export const usePDFReader = () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // Use FileReader to read the PDF file
+      // Import PDF.js
+      const pdfjsLib = await import('pdfjs-dist');
+      
+      // Set worker source
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+      // Read file as array buffer
       const arrayBuffer = await file.arrayBuffer();
       
-      // For now, we'll simulate PDF text extraction
-      // In a real implementation, you'd use a library like pdf-parse or PDF.js
-      const simulatedText = `This is extracted text from ${file.name}. 
+      // Load PDF document
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
-PDF text extraction would happen here using a proper PDF parsing library. The text would be extracted from all pages and formatted for reading. 
+      let fullText = '';
+      
+      // Extract text from all pages
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // Combine text items
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        fullText += pageText + '\n\n';
+      }
 
-This sample text demonstrates how the reader would work with actual PDF content. Each sentence would be highlighted as the audio plays, creating a synchronized reading experience.
-
-You can upload a real PDF file and the system will extract its text content for text-to-speech conversion using ElevenLabs API.`;
+      if (!fullText.trim()) {
+        throw new Error('No text found in PDF. The PDF might be image-based or protected.');
+      }
 
       setState(prev => ({
         ...prev,
         file,
-        text: simulatedText,
+        text: fullText.trim(),
         isLoading: false,
         currentPosition: 0
       }));
 
       toast({
         title: "PDF processed successfully",
-        description: "Text extracted and ready for audio conversion"
+        description: `Extracted text from ${pdf.numPages} pages`
       });
 
     } catch (error) {
